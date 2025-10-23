@@ -2,12 +2,23 @@ import numpy as np
 import pandas as pd
 
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    # Ensure 1D series
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+    series = pd.Series(series, copy=False).astype(float).squeeze()
+
     delta = series.diff()
-    up = np.where(delta > 0, delta, 0.0)
-    down = np.where(delta < 0, -delta, 0.0)
-    roll_up = pd.Series(up, index=series.index).ewm(alpha=1/period, adjust=False).mean()
-    roll_down = pd.Series(down, index=series.index).ewm(alpha=1/period, adjust=False).mean()
-    rs = roll_up / (roll_down + 1e-12)
+
+    # Use pandas ops to keep alignment and avoid shape issues
+    gains = delta.clip(lower=0.0)
+    losses = (-delta).clip(lower=0.0)
+
+    roll_up = gains.ewm(alpha=1/period, adjust=False).mean()
+    roll_down = losses.ewm(alpha=1/period, adjust=False).mean()
+
+    # Avoid divide-by-zero
+    denom = roll_down.replace(0.0, 1e-12)
+    rs = roll_up / denom
     return 100 - (100 / (1 + rs))
 
 def vwap(df: pd.DataFrame) -> pd.Series:
